@@ -1,6 +1,6 @@
 /*
  * Voice Input ZH
- * Voice recording → OpenAI transcription (forced Traditional Chinese) → optional LLM polish (custom prompt)
+ * Voice recording → OpenAI transcription (language configurable, zh-TW by default) → optional LLM polish (custom prompt)
  * Audio is cached to the vault first, so a failed transcription can be retried without re-recording.
  */
 'use strict';
@@ -22,6 +22,7 @@ const VIEW_TYPE = 'voice-input-zh-view';
 const DEFAULT_SETTINGS = {
   apiKey: '',
   transcriptionModel: 'gpt-4o-transcribe',
+  transcriptionLanguage: 'zh',
   transcriptionPrompt:
     '以下是一段繁體中文（台灣）的口述內容，可能夾雜英文技術詞彙與產品名稱，請以繁體中文輸出。',
   enablePostProcess: true,
@@ -109,9 +110,10 @@ async function transcribeAudio(settings, audioBuffer) {
   if (!settings.apiKey) throw new Error('No OpenAI API key set (add it in plugin settings)');
   const parts = [
     { name: 'model', value: settings.transcriptionModel },
-    { name: 'language', value: 'zh' },
     { name: 'response_format', value: 'json' },
   ];
+  const lang = (settings.transcriptionLanguage || '').trim();
+  if (lang) parts.push({ name: 'language', value: lang });
   if (settings.transcriptionPrompt.trim()) {
     parts.push({ name: 'prompt', value: settings.transcriptionPrompt.trim() });
   }
@@ -650,6 +652,19 @@ class VoiceInputSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.transcriptionModel)
           .onChange(async (v) => {
             this.plugin.settings.transcriptionModel = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Transcription language')
+      .setDesc('ISO-639-1 code passed to the transcription API (e.g. zh, en, ja). Leave empty to auto-detect.')
+      .addText((t) =>
+        t
+          .setPlaceholder('zh')
+          .setValue(this.plugin.settings.transcriptionLanguage)
+          .onChange(async (v) => {
+            this.plugin.settings.transcriptionLanguage = v.trim();
             await this.plugin.saveSettings();
           })
       );

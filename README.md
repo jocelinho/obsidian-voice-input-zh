@@ -14,7 +14,7 @@ Most speech-to-text plugins randomly emit Simplified Chinese and give you no con
 ## How it works
 
 ```
-Record (mic) → save .webm into vault → OpenAI transcription (language=zh + context prompt)
+Record (mic) → save .webm into vault → OpenAI transcription (your language + context prompt)
 → optional LLM polish (your prompt) → editable transcript → insert into your note
 ```
 
@@ -33,6 +33,7 @@ A hotkey can be bound to the *Start/stop recording* command.
 | Setting | Default | Notes |
 |---|---|---|
 | Transcription model | `gpt-4o-transcribe` | also `gpt-4o-mini-transcribe`, `whisper-1` |
+| Transcription language | `zh` | any ISO-639-1 code; empty = auto-detect |
 | Transcription prompt | zh-TW context hint | add your recurring names/jargon here |
 | AI polish | on | the LLM cleanup pass |
 | Polish model | `gpt-4o-mini` | any chat-completions model id |
@@ -41,7 +42,7 @@ A hotkey can be bound to the *Start/stop recording* command.
 | Keep audio after success | off | failed audio is always kept |
 | Max recording length | 15 min | auto-stops and transcribes |
 
-Not a Traditional Chinese speaker? Edit the two prompts — the enforcement lives entirely in them, so the same plugin works for any language OpenAI supports.
+Not a Traditional Chinese speaker? Change the transcription language (or leave it empty for auto-detect) and edit the two prompts — the zh-TW enforcement lives entirely in settings, so the same plugin works for any language OpenAI supports.
 
 ## Disclosures
 
