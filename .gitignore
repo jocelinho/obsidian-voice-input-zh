@@ -1,0 +1,5 @@
+# plugin runtime data — contains the user's OpenAI API key, never commit
+data.json
+
+.DS_Store
+node_modules/
