@@ -32,11 +32,11 @@ A hotkey can be bound to the *Start/stop recording* command.
 
 | Setting | Default | Notes |
 |---|---|---|
-| Transcription model | `gpt-4o-transcribe` | also `gpt-4o-mini-transcribe`, `whisper-1` |
+| Transcription model | `gpt-transcribe` | also `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`. `gpt-transcribe` often outputs Simplified Chinese regardless of the prompt — keep AI polish on |
 | Transcription language | `zh` | any ISO-639-1 code; empty = auto-detect |
 | Transcription prompt | zh-TW context hint | add your recurring names/jargon here |
 | AI polish | on | the LLM cleanup pass |
-| Polish model | `gpt-4o-mini` | any chat-completions model id |
+| Polish model | `gpt-5.4-mini` | any chat-completions model id that accepts `temperature` (reasoning models such as `gpt-6-luna` reject it) |
 | Polish prompt | zh-TW cleanup rules | editable in panel too |
 | Cache folder | `_voice-input-cache` | inside your vault |
 | Keep audio after success | off | failed audio is always kept |

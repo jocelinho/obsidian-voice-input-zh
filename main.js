@@ -21,12 +21,12 @@ const VIEW_TYPE = 'voice-input-zh-view';
 
 const DEFAULT_SETTINGS = {
   apiKey: '',
-  transcriptionModel: 'gpt-4o-transcribe',
+  transcriptionModel: 'gpt-transcribe',
   transcriptionLanguage: 'zh',
   transcriptionPrompt:
     '以下是一段繁體中文（台灣）的口述內容，可能夾雜英文技術詞彙與產品名稱，請以繁體中文輸出。',
   enablePostProcess: true,
-  postProcessModel: 'gpt-4o-mini',
+  postProcessModel: 'gpt-5.4-mini',
   postProcessPrompt:
     '你是語音轉文字的後處理助手。請把使用者提供的逐字稿整理成通順的繁體中文（台灣用語）：\n' +
     '1. 一律輸出繁體中文，絕對不可出現簡體字。\n' +
@@ -646,7 +646,8 @@ class VoiceInputSettingTab extends PluginSettingTab {
       .setName('Transcription model')
       .addDropdown((d) =>
         d
-          .addOption('gpt-4o-transcribe', 'GPT-4o transcribe (most accurate)')
+          .addOption('gpt-transcribe', 'GPT transcribe (latest)')
+          .addOption('gpt-4o-transcribe', 'GPT-4o transcribe')
           .addOption('gpt-4o-mini-transcribe', 'GPT-4o mini transcribe (fast, cheap)')
           .addOption('whisper-1', 'Whisper-1')
           .setValue(this.plugin.settings.transcriptionModel)
