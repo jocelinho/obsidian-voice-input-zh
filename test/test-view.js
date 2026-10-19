@@ -113,11 +113,23 @@ const fakePlugin = {
   const walk = (el) => { dumpText.push(el.className + ' ' + el.textContent); el.children.forEach(walk); };
   walk(view.contentEl);
   const all = dumpText.join('\n');
-  const mustContain = ['Start recording', 'AI polish prompt', 'Cached recordings', 'viz-prompt-body', 'v' + manifest.version];
+  const mustContain = ['Start recording', 'Dictionary', 'AI polish prompt', 'Cached recordings', 'viz-prompt-body', 'v' + manifest.version];
   for (const s of mustContain) {
     if (!all.includes(s)) throw new Error(`MISSING in rendered view: ${s}`);
   }
   if (all.includes('[object')) throw new Error('found "[object" in rendered output');
+  // dictionary parsing + replacement
+  const assert = require('assert');
+  const { parseDictionary, applyReplacements } = PluginClass._internals;
+  const dict = parseDictionary('# comment\nOnBeat、dayframe\nDAU, WAU\n\nRoyas, 羅亞斯 → Russ\nday frame -> dayframe');
+  assert.deepStrictEqual(dict.terms, ['OnBeat', 'dayframe', 'DAU', 'WAU', 'Russ']);
+  assert.strictEqual(dict.replacements.length, 3);
+  assert.strictEqual(
+    applyReplacements('跟 royas 和羅亞斯討論 Royaston 的 Day Frame', dict.replacements),
+    '跟 Russ 和Russ討論 Royaston 的 dayframe'
+  );
+  assert.strictEqual(applyReplacements('a.b $& c', [{ from: 'a.b', to: '$&x' }]), '$&x $& c');
+
   console.log('✅ smoke test passed — view renders, prompt section present, no [object Object]');
 })().catch((e) => {
   console.error('🔴', e.message);

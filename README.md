@@ -35,6 +35,7 @@ A hotkey can be bound to the *Start/stop recording* command.
 | Transcription model | `gpt-transcribe` | also `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`. `gpt-transcribe` often outputs Simplified Chinese regardless of the prompt — keep AI polish on |
 | Transcription language | `zh` | any ISO-639-1 code; empty = auto-detect |
 | Transcription prompt | zh-TW context hint | add your recurring names/jargon here |
+| Dictionary | empty | names/jargon you say often, one per line or comma-separated — sent to the transcription model, and the polish step keeps their spelling. `wrong → right` (e.g. `Royas → Russ`) always replaces. Also editable in the panel |
 | AI polish | on | the LLM cleanup pass |
 | Polish model | `gpt-5.4-mini` | any chat-completions model id that accepts `temperature` (reasoning models such as `gpt-6-luna` reject it) |
 | Polish prompt | zh-TW cleanup rules | editable in panel too |

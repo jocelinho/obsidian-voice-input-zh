@@ -40,6 +40,8 @@ const DEFAULT_SETTINGS = {
   maxRecordingMinutes: 15,
   draftTranscript: '',
   promptCollapsed: false,
+  dictionary: '',
+  dictionaryCollapsed: false,
 };
 
 /* ---------- helpers ---------- */
@@ -72,6 +74,42 @@ function formatClock(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// dictionary text: one entry per line; "#" starts a comment.
+//   "OnBeat、dayframe"      terms the models should spell this way
+//   "Royas, 羅亞斯 → Russ"  plain-text replacements applied to the transcript (also adds "Russ" as a term)
+//   "->" and "=>" work as well as "→"
+function parseDictionary(text) {
+  const terms = [];
+  const replacements = [];
+  const splitList = (str) => str.split(/[,，、]/).map((x) => x.trim()).filter(Boolean);
+  for (const raw of (text || '').split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const m = line.match(/^(.*?)\s*(?:→|->|=>)\s*(.+)$/);
+    if (m) {
+      const to = m[2].trim();
+      for (const from of splitList(m[1])) replacements.push({ from, to });
+      if (!terms.includes(to)) terms.push(to);
+    } else {
+      for (const t of splitList(line)) if (!terms.includes(t)) terms.push(t);
+    }
+  }
+  return { terms, replacements };
+}
+
+function applyReplacements(text, replacements) {
+  let out = text;
+  for (const { from, to } of replacements) {
+    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // ASCII words get word boundaries + case-insensitive matching so "royas" matches but "Royaston" doesn't
+    const re = /^[\x00-\x7f]+$/.test(from)
+      ? new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, 'gi')
+      : new RegExp(escaped, 'g');
+    out = out.replace(re, () => to);
+  }
+  return out;
 }
 
 function buildMultipart(parts) {
@@ -114,9 +152,11 @@ async function transcribeAudio(settings, audioBuffer) {
   ];
   const lang = (settings.transcriptionLanguage || '').trim();
   if (lang) parts.push({ name: 'language', value: lang });
-  if (settings.transcriptionPrompt.trim()) {
-    parts.push({ name: 'prompt', value: settings.transcriptionPrompt.trim() });
-  }
+  const { terms } = parseDictionary(settings.dictionary);
+  const prompt = [settings.transcriptionPrompt.trim(), terms.length ? '常用詞彙：' + terms.join('、') : '']
+    .filter(Boolean)
+    .join('\n');
+  if (prompt) parts.push({ name: 'prompt', value: prompt });
   parts.push({ name: 'file', filename: 'audio.webm', type: 'audio/webm', data: audioBuffer });
 
   const { boundary, body } = buildMultipart(parts);
@@ -138,6 +178,10 @@ async function transcribeAudio(settings, audioBuffer) {
 }
 
 async function postProcessText(settings, text) {
+  const { terms } = parseDictionary(settings.dictionary);
+  const system = terms.length
+    ? `${settings.postProcessPrompt}\n\n以下專有名詞請維持這個寫法：${terms.join('、')}`
+    : settings.postProcessPrompt;
   const res = await requestUrl({
     url: 'https://api.openai.com/v1/chat/completions',
     method: 'POST',
@@ -149,7 +193,7 @@ async function postProcessText(settings, text) {
       model: settings.postProcessModel,
       temperature: 0.2,
       messages: [
-        { role: 'system', content: settings.postProcessPrompt },
+        { role: 'system', content: system },
         { role: 'user', content: text },
       ],
     }),
@@ -235,6 +279,9 @@ class VoiceInputView extends ItemView {
     this.makeActionBtn(actions, 'copy', 'Copy', false, () => this.copyText());
     this.makeActionBtn(actions, 'eraser', 'Clear', false, () => this.clearText());
 
+    // dictionary of recurring names/jargon (editable in-panel)
+    this.buildDictionarySection(root);
+
     // AI polish prompt (editable in-panel)
     this.buildPromptSection(root);
 
@@ -300,6 +347,45 @@ class VoiceInputView extends ItemView {
     };
 
     this.syncPromptUI();
+  }
+
+  buildDictionarySection(root) {
+    const section = root.createDiv({ cls: 'viz-prompt viz-dict' });
+    const header = section.createDiv({ cls: 'viz-prompt-header' });
+    const chevron = header.createDiv({ cls: 'viz-prompt-chevron' });
+    setIcon(chevron, 'chevron-down');
+    header.createSpan({ cls: 'viz-prompt-title', text: 'Dictionary' });
+    const count = header.createSpan({ cls: 'viz-pending-count', text: '' });
+
+    const body = section.createDiv({ cls: 'viz-prompt-body' });
+    const textarea = body.createEl('textarea', {
+      cls: 'viz-prompt-text',
+      attr: { placeholder: 'OnBeat、dayframe、DAU\nRoyas → Russ', rows: '5' },
+    });
+    textarea.value = this.plugin.settings.dictionary || '';
+    const footer = body.createDiv({ cls: 'viz-prompt-footer' });
+    footer.createSpan({
+      cls: 'viz-prompt-hint',
+      text: 'One term per line (or comma-separated). "wrong → right" always replaces. Saved automatically.',
+    });
+
+    const sync = () => {
+      const { terms, replacements } = parseDictionary(textarea.value);
+      count.setText(terms.length ? `(${terms.length})` : '');
+      body.toggleClass('is-hidden', !!this.plugin.settings.dictionaryCollapsed);
+      chevron.toggleClass('is-collapsed', !!this.plugin.settings.dictionaryCollapsed);
+    };
+    textarea.addEventListener('input', () => {
+      this.plugin.settings.dictionary = textarea.value;
+      this.plugin.debouncedSaveSettings();
+      sync();
+    });
+    header.onclick = async () => {
+      this.plugin.settings.dictionaryCollapsed = !this.plugin.settings.dictionaryCollapsed;
+      await this.plugin.saveSettings();
+      sync();
+    };
+    sync();
   }
 
   syncPromptUI() {
@@ -450,12 +536,14 @@ class VoiceInputView extends ItemView {
   async runTranscription(filePath, audioBuffer) {
     const settings = this.plugin.settings;
     this.setState('transcribing');
-    let text = await transcribeAudio(settings, audioBuffer);
+    const { replacements } = parseDictionary(settings.dictionary);
+    let text = applyReplacements(await transcribeAudio(settings, audioBuffer), replacements);
 
     if (settings.enablePostProcess && text) {
       this.setState('polishing');
       try {
-        text = await postProcessText(settings, text);
+        // run replacements again: polish converts Simplified → Traditional, which can surface new matches
+        text = applyReplacements(await postProcessText(settings, text), replacements);
       } catch (e) {
         // a failed polish should not lose the raw transcript
         console.error('[voice-input-zh]', e);
@@ -684,6 +772,22 @@ class VoiceInputSettingTab extends PluginSettingTab {
         t.inputEl.style.width = '100%';
       });
 
+    new Setting(containerEl)
+      .setName('Dictionary')
+      .setDesc(
+        'Names and jargon you say often, one per line (or comma-separated). They are sent to the transcription model and the polish step keeps their spelling. Write "wrong → right" (e.g. "Royas → Russ") to always replace a mishearing. Also editable in the panel.'
+      )
+      .addTextArea((t) => {
+        t.setPlaceholder('OnBeat、dayframe、DAU\nRoyas → Russ')
+          .setValue(this.plugin.settings.dictionary)
+          .onChange(async (v) => {
+            this.plugin.settings.dictionary = v;
+            await this.plugin.saveSettings();
+          });
+        t.inputEl.rows = 6;
+        t.inputEl.style.width = '100%';
+      });
+
     new Setting(containerEl).setName('AI polish').setHeading();
 
     new Setting(containerEl)
@@ -860,3 +964,4 @@ class VoiceInputZhPlugin extends Plugin {
 }
 
 module.exports = VoiceInputZhPlugin;
+module.exports._internals = { parseDictionary, applyReplacements, transcribeAudio, postProcessText };
